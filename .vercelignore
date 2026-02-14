@@ -1,11 +1,16 @@
+# Training data
 dataset/
-*.pyc
-__pycache__/
 photos_eyes_closed/
 photos_eyes_open/
-beep.wav
-.DS_Store
-*.log
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Development files
 capture_eyes.py
 capture_photos.py
 predict_eyes.py
@@ -14,4 +19,14 @@ train_eye_model.py
 train_model.py
 ml_sleep_detector.py
 streamlit_app.py
+
+# Audio files
+beep.wav
+
+# Documentation
 README.md
+
+# OS files
+.DS_Store
+*.log
+Thumbs.db
