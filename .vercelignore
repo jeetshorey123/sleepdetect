@@ -1,0 +1,9 @@
+dataset/
+*.pyc
+__pycache__/
+*.pkl
+photos_eyes_closed/
+photos_eyes_open/
+beep.wav
+.DS_Store
+*.log

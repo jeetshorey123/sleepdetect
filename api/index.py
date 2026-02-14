@@ -7,7 +7,10 @@ from io import BytesIO
 from PIL import Image
 import os
 
-app = Flask(__name__, template_folder='../templates', static_folder='../static')
+app = Flask(__name__)
+
+# Get the base directory
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class SleepDetector:
     def __init__(self):
@@ -19,7 +22,7 @@ class SleepDetector:
     def load_model(self):
         """Load the trained eye classifier model"""
         try:
-            model_path = os.path.join(os.path.dirname(__file__), '..', 'eye_classifier_model.pkl')
+            model_path = os.path.join(BASE_DIR, 'eye_classifier_model.pkl')
             with open(model_path, 'rb') as f:
                 data = pickle.load(f)
                 self.model = data['model']
@@ -127,7 +130,9 @@ detector = SleepDetector()
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    template_path = os.path.join(BASE_DIR, 'templates', 'index.html')
+    with open(template_path, 'r', encoding='utf-8') as f:
+        return f.read()
 
 @app.route('/api/predict', methods=['POST'])
 def predict():
@@ -152,5 +157,4 @@ def health():
     })
 
 # For Vercel
-def handler(request):
-    return app(request)
+app = app
