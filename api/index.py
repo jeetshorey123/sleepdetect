@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify, send_from_directory
+from http.server import BaseHTTPRequestHandler
+import json
 import cv2
 import numpy as np
 import pickle
@@ -6,8 +7,6 @@ import base64
 from io import BytesIO
 from PIL import Image
 import os
-
-app = Flask(__name__)
 
 # Get the base directory
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -146,57 +145,78 @@ class SleepDetector:
 # Initialize detector
 detector = SleepDetector()
 
-@app.route('/')
-def index():
-    """Serve the main HTML page"""
-    try:
-        template_path = os.path.join(BASE_DIR, 'templates', 'index.html')
-        with open(template_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-        return html_content, 200, {'Content-Type': 'text/html; charset=utf-8'}
-    except Exception as e:
-        return f"Error loading page: {str(e)}", 500
-
-@app.route('/predict', methods=['POST'])
-def predict():
-    """Handle prediction requests"""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'status': 'error', 'message': 'No JSON data provided'}), 400
-        
-        image_data = data.get('image')
-        if not image_data:
-            return jsonify({'status': 'error', 'message': 'No image data provided'}), 400
-        
-        result = detector.predict_eye_state(image_data)
-        return jsonify(result)
-        
-    except Exception as e:
-        print(f"Predict error: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-@app.route('/api/predict', methods=['POST'])
-def api_predict():
-    """Alternative API endpoint"""
-    return predict()
-
-@app.route('/health')
-def health():
-    """Health check endpoint"""
-    return jsonify({
-        'status': 'ok',
-        'message': 'Sleep Detective API is running',
-        'model_loaded': detector.model is not None,
-        'base_dir': BASE_DIR
-    })
-
-@app.route('/api/health')
-def api_health():
-    """Alternative health check endpoint"""
-    return health()
-
-# This is required for Vercel
-def handler(event, context):
+class handler(BaseHTTPRequestHandler):
     """Serverless handler for Vercel"""
-    return app(event, context)
+    
+    def do_GET(self):
+        """Handle GET requests"""
+        try:
+            if self.path == '/' or self.path == '/index.html':
+                # Serve the main HTML page
+                template_path = os.path.join(BASE_DIR, 'templates', 'index.html')
+                with open(template_path, 'r', encoding='utf-8') as f:
+                    html_content = f.read()
+                
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(html_content.encode('utf-8'))
+                
+            elif self.path == '/health' or self.path == '/api/health':
+                # Health check endpoint
+                response = {
+                    'status': 'ok',
+                    'message': 'Sleep Detective API is running',
+                    'model_loaded': detector.model is not None
+                }
+                
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(response).encode('utf-8'))
+            else:
+                self.send_response(404)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'error': 'Not found'}).encode('utf-8'))
+                
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
+    
+    def do_POST(self):
+        """Handle POST requests"""
+        try:
+            if self.path == '/predict' or self.path == '/api/predict':
+                # Get request body
+                content_length = int(self.headers.get('Content-Length', 0))
+                post_data = self.rfile.read(content_length)
+                
+                # Parse JSON
+                data = json.loads(post_data.decode('utf-8'))
+                image_data = data.get('image')
+                
+                if not image_data:
+                    response = {'status': 'error', 'message': 'No image data provided'}
+                    self.send_response(400)
+                else:
+                    # Predict
+                    response = detector.predict_eye_state(image_data)
+                    self.send_response(200)
+                
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(response).encode('utf-8'))
+            else:
+                self.send_response(404)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'error': 'Not found'}).encode('utf-8'))
+                
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
