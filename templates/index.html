@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>😴 Sleep Detective - AI Drowsiness Detection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.2em;
+        }
+        
+        .upload-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .upload-box {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            max-width: 500px;
+            background: #f8f9ff;
+        }
+        
+        .upload-box:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+        
+        .upload-box.dragover {
+            background: #e8ebff;
+            border-color: #764ba2;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .upload-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+        
+        .upload-text {
+            font-size: 1.2em;
+            color: #666;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 20px;
+        }
+        
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: scale(1);
+        }
+        
+        .results-section {
+            display: none;
+            margin-top: 40px;
+        }
+        
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .image-container {
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .image-container img {
+            width: 100%;
+            display: block;
+        }
+        
+        .image-label {
+            text-align: center;
+            font-weight: bold;
+            padding: 10px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        .prediction-box {
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            font-size: 2em;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        
+        .eyes-open {
+            background-color: #d4edda;
+            color: #155724;
+            border: 3px solid #c3e6cb;
+        }
+        
+        .eyes-closed {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 3px solid #f5c6cb;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        
+        .confidence-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.5s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .alert-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+            font-size: 1.2em;
+            color: #856404;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .info-section {
+            margin-top: 40px;
+            padding-top: 40px;
+            border-top: 2px solid #e0e0e0;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .info-card {
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .info-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .results-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            .container {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>😴 Sleep Detective</h1>
+        <p class="subtitle">AI-Powered Drowsiness Detection System</p>
+        
+        <div class="upload-section">
+            <div class="upload-box" id="uploadBox">
+                <div class="upload-icon">📸</div>
+                <div class="upload-text">
+                    Click to upload or drag & drop an image<br>
+                    <small style="color: #999;">Supports JPG, PNG</small>
+                </div>
+                <input type="file" id="fileInput" accept="image/*">
+            </div>
+            <button class="btn" id="analyzeBtn" disabled>🔍 Analyze Image</button>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 20px; color: #667eea; font-weight: bold;">Analyzing your image...</p>
+        </div>
+        
+        <div class="results-section" id="results">
+            <h2 style="text-align: center; color: #333; margin-bottom: 20px;">Detection Results</h2>
+            
+            <div class="results-grid">
+                <div class="image-container">
+                    <div class="image-label">Original Image</div>
+                    <img id="originalImage" src="" alt="Original">
+                </div>
+                <div class="image-container">
+                    <div class="image-label">Processed Image</div>
+                    <img id="processedImage" src="" alt="Processed">
+                </div>
+            </div>
+            
+            <div class="prediction-box" id="predictionBox">
+                <span id="predictionText">-</span>
+            </div>
+            
+            <div>
+                <h3 style="text-align: center; color: #333;">Confidence Level</h3>
+                <div class="confidence-bar">
+                    <div class="confidence-fill" id="confidenceBar">0%</div>
+                </div>
+            </div>
+            
+            <div class="alert-box" id="alertBox" style="display: none;">
+                ⚠️ <strong>DROWSINESS ALERT!</strong> Eyes appear to be closed. Take a break!
+            </div>
+        </div>
+        
+        <div class="info-section">
+            <h2 style="color: #333; margin-bottom: 20px;">📖 How It Works</h2>
+            <div class="info-grid">
+                <div class="info-card">
+                    <h3>1. Upload Image</h3>
+                    <p>Upload a clear photo showing your face. Ensure good lighting and face the camera directly.</p>
+                </div>
+                <div class="info-card">
+                    <h3>2. AI Analysis</h3>
+                    <p>Our machine learning model detects your face and analyzes your eye state using computer vision.</p>
+                </div>
+                <div class="info-card">
+                    <h3>3. Instant Results</h3>
+                    <p>Get immediate feedback on drowsiness with confidence scores and visual indicators.</p>
+                </div>
+            </div>
+            
+            <div style="margin-top: 30px; text-align: center; color: #666;">
+                <p><strong>Technology:</strong> OpenCV • Scikit-learn • Flask • Haar Cascades</p>
+                <p style="margin-top: 10px;">
+                    <a href="https://github.com/jeetshorey123/sleepdetect" target="_blank" 
+                       style="color: #667eea; text-decoration: none; font-weight: bold;">
+                        🔗 View on GitHub
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const uploadBox = document.getElementById('uploadBox');
+        const fileInput = document.getElementById('fileInput');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        let selectedFile = null;
+        
+        // Click to upload
+        uploadBox.addEventListener('click', () => fileInput.click());
+        
+        // File selection
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                selectedFile = e.target.files[0];
+                updateUploadBox();
+                analyzeBtn.disabled = false;
+            }
+        });
+        
+        // Drag and drop
+        uploadBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadBox.classList.add('dragover');
+        });
+        
+        uploadBox.addEventListener('dragleave', () => {
+            uploadBox.classList.remove('dragover');
+        });
+        
+        uploadBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length > 0) {
+                selectedFile = e.dataTransfer.files[0];
+                fileInput.files = e.dataTransfer.files;
+                updateUploadBox();
+                analyzeBtn.disabled = false;
+            }
+        });
+        
+        function updateUploadBox() {
+            uploadBox.innerHTML = `
+                <div class="upload-icon">✓</div>
+                <div class="upload-text">
+                    ${selectedFile.name}<br>
+                    <small style="color: #999;">Click to change image</small>
+                </div>
+            `;
+        }
+        
+        // Analyze button
+        analyzeBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            // Show loading
+            loading.style.display = 'block';
+            results.style.display = 'none';
+            analyzeBtn.disabled = true;
+            
+            try {
+                // Convert image to base64
+                const base64 = await fileToBase64(selectedFile);
+                
+                // Send to API
+                const response = await fetch('/api/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ image: base64 })
+                });
+                
+                const result = await response.json();
+                
+                // Hide loading
+                loading.style.display = 'none';
+                
+                if (result.status === 'success') {
+                    displayResults(result, base64);
+                } else {
+                    alert('Error: ' + (result.message || 'Unknown error'));
+                    analyzeBtn.disabled = false;
+                }
+                
+            } catch (error) {
+                loading.style.display = 'none';
+                alert('Error analyzing image: ' + error.message);
+                analyzeBtn.disabled = false;
+            }
+        });
+        
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        function displayResults(result, originalImage) {
+            // Show results section
+            results.style.display = 'block';
+            
+            // Display images
+            document.getElementById('originalImage').src = originalImage;
+            document.getElementById('processedImage').src = result.result_image || originalImage;
+            
+            // Display prediction
+            const predictionBox = document.getElementById('predictionBox');
+            const predictionText = document.getElementById('predictionText');
+            predictionText.textContent = result.state;
+            
+            // Update box styling
+            predictionBox.className = 'prediction-box';
+            if (result.state === 'Eyes Open') {
+                predictionBox.classList.add('eyes-open');
+            } else if (result.state === 'Eyes Closed') {
+                predictionBox.classList.add('eyes-closed');
+            }
+            
+            // Display confidence
+            const confidence = Math.round(result.confidence * 100);
+            const confidenceBar = document.getElementById('confidenceBar');
+            confidenceBar.style.width = confidence + '%';
+            confidenceBar.textContent = confidence + '%';
+            
+            // Show alert if eyes closed
+            const alertBox = document.getElementById('alertBox');
+            if (result.alert) {
+                alertBox.style.display = 'block';
+            } else {
+                alertBox.style.display = 'none';
+            }
+            
+            // Scroll to results
+            results.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            
+            // Re-enable button
+            analyzeBtn.disabled = false;
+        }
+    </script>
+</body>
+</html>
