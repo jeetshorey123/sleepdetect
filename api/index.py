@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import cv2
 import numpy as np
 import pickle
@@ -23,13 +23,18 @@ class SleepDetector:
         """Load the trained eye classifier model"""
         try:
             model_path = os.path.join(BASE_DIR, 'eye_classifier_model.pkl')
-            with open(model_path, 'rb') as f:
-                data = pickle.load(f)
-                self.model = data['model']
-                self.image_size = data['image_size']
-            return True
+            if os.path.exists(model_path):
+                with open(model_path, 'rb') as f:
+                    data = pickle.load(f)
+                    self.model = data['model']
+                    self.image_size = data['image_size']
+                print("✅ Model loaded successfully")
+                return True
+            else:
+                print(f"⚠️ Model file not found at: {model_path}")
+                return False
         except Exception as e:
-            print(f"Model not loaded: {e}")
+            print(f"❌ Model not loaded: {e}")
             return False
     
     def preprocess_face(self, face_img):
@@ -50,7 +55,11 @@ class SleepDetector:
         """Predict if eyes are open or closed"""
         try:
             # Decode base64 image
-            img_bytes = base64.b64decode(image_data.split(',')[1])
+            if ',' in image_data:
+                img_bytes = base64.b64decode(image_data.split(',')[1])
+            else:
+                img_bytes = base64.b64decode(image_data)
+            
             img = Image.open(BytesIO(img_bytes))
             img = np.array(img)
             
@@ -67,7 +76,7 @@ class SleepDetector:
             if len(faces) == 0:
                 return {
                     'status': 'error',
-                    'message': 'No face detected',
+                    'message': 'No face detected in the image. Please ensure your face is clearly visible.',
                     'state': 'No Face Detected',
                     'confidence': 0
                 }
@@ -78,14 +87,14 @@ class SleepDetector:
             
             # Draw rectangle on face
             color = (0, 255, 0)
-            cv2.rectangle(img, (x, y), (x+w, y+h), color, 2)
+            cv2.rectangle(img, (x, y), (x+w, y+h), color, 3)
             
             # Preprocess and predict
             if self.model is None:
                 return {
                     'status': 'error',
-                    'message': 'Model not loaded. Using demo mode.',
-                    'state': 'Unknown',
+                    'message': 'Model not loaded. Demo mode - upload a clear face image.',
+                    'state': 'Model Not Available',
                     'confidence': 0
                 }
             
@@ -93,7 +102,7 @@ class SleepDetector:
             if processed_face is None:
                 return {
                     'status': 'error',
-                    'message': 'Error processing face',
+                    'message': 'Error processing face region',
                     'state': 'Error',
                     'confidence': 0
                 }
@@ -104,6 +113,14 @@ class SleepDetector:
             confidence = float(max(probabilities))
             
             state = "Eyes Open" if prediction == 1 else "Eyes Closed"
+            
+            # Update color based on prediction
+            color = (0, 255, 0) if prediction == 1 else (255, 0, 0)
+            cv2.rectangle(img, (x, y), (x+w, y+h), color, 3)
+            
+            # Add text label
+            label = f"{state} ({confidence*100:.1f}%)"
+            cv2.putText(img, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
             
             # Encode result image
             _, buffer = cv2.imencode('.jpg', img)
@@ -118,9 +135,10 @@ class SleepDetector:
             }
             
         except Exception as e:
+            print(f"Prediction error: {e}")
             return {
                 'status': 'error',
-                'message': str(e),
+                'message': f'Error processing image: {str(e)}',
                 'state': 'Error',
                 'confidence': 0
             }
@@ -130,31 +148,55 @@ detector = SleepDetector()
 
 @app.route('/')
 def index():
-    template_path = os.path.join(BASE_DIR, 'templates', 'index.html')
-    with open(template_path, 'r', encoding='utf-8') as f:
-        return f.read()
+    """Serve the main HTML page"""
+    try:
+        template_path = os.path.join(BASE_DIR, 'templates', 'index.html')
+        with open(template_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        return html_content, 200, {'Content-Type': 'text/html; charset=utf-8'}
+    except Exception as e:
+        return f"Error loading page: {str(e)}", 500
 
-@app.route('/api/predict', methods=['POST'])
+@app.route('/predict', methods=['POST'])
 def predict():
+    """Handle prediction requests"""
     try:
         data = request.get_json()
-        image_data = data.get('image')
+        if not data:
+            return jsonify({'status': 'error', 'message': 'No JSON data provided'}), 400
         
+        image_data = data.get('image')
         if not image_data:
-            return jsonify({'status': 'error', 'message': 'No image provided'}), 400
+            return jsonify({'status': 'error', 'message': 'No image data provided'}), 400
         
         result = detector.predict_eye_state(image_data)
         return jsonify(result)
         
     except Exception as e:
+        print(f"Predict error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@app.route('/api/health')
+@app.route('/api/predict', methods=['POST'])
+def api_predict():
+    """Alternative API endpoint"""
+    return predict()
+
+@app.route('/health')
 def health():
+    """Health check endpoint"""
     return jsonify({
         'status': 'ok',
-        'model_loaded': detector.model is not None
+        'message': 'Sleep Detective API is running',
+        'model_loaded': detector.model is not None,
+        'base_dir': BASE_DIR
     })
 
-# For Vercel
-app = app
+@app.route('/api/health')
+def api_health():
+    """Alternative health check endpoint"""
+    return health()
+
+# This is required for Vercel
+def handler(event, context):
+    """Serverless handler for Vercel"""
+    return app(event, context)
